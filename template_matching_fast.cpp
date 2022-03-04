@@ -16,35 +16,14 @@ void print_path(char *file_name) {
 	}
 }
 
-float calc_pixels_mean_value(unsigned char **img, int w, int h, int x = 0, int y = 0) {
+int calc_pixels_abs_a_minus_b_sum(unsigned char **img_a, unsigned char **patch_b, int w, int h, int img_x, int img_y) {
 	int pixel_sum = 0;
-	for (int dy = 0; dy < h; ++dy) {
-		for (int dx = 0; dx < w; ++dx) {
-			pixel_sum += img[x + dx][y + dy];
-		}
-	}
-	return 1.0f * pixel_sum / (w * h);
-}
-
-int calc_pixels_a_times_b_sum(unsigned char **img_a, unsigned char **patch_b, int w, int h, int img_x, int img_y) {
-	int pixel_sum = 0;
-	for (int dy = 0; dy < h; ++dy) {
-		for (int dx = 0; dx < w; ++dx) {
-			pixel_sum += img_a[img_x + dx][img_y + dy] * patch_b[dx][dy];
+	for (int y = 0; y < h; ++y) {
+		for (int x = 0; x < w; ++x) {
+			pixel_sum += abs(img_a[img_x + x][img_y + y] - patch_b[x][y]);
 		}
 	}
 	return pixel_sum;
-}
-
-int calc_pixels_squared_sum(unsigned char **img, int w, int h, int x = 0, int y = 0) {
-	int pixels_squared_sum = 0;
-	for (int dy = 0; dy < h; ++dy) {
-		for (int dx = 0; dx < w; ++dx) {
-			int pixel = img[x + dx][y + dy];
-			pixels_squared_sum += pixel * pixel;
-		}
-	}
-	return pixels_squared_sum;
 }
 
 void crop(unsigned char **matrix, int x, int y, int w, int h, const char* fileName) {
@@ -60,34 +39,15 @@ void crop(unsigned char **matrix, int x, int y, int w, int h, const char* fileNa
 
 void match_patch(unsigned char **img, int img_w, int img_h, unsigned char **patch, int patch_w, int patch_h) {
 
-	float n_squared_inv = 1.0f / (patch_w * patch_h);
-	float patch_mean_value = calc_pixels_mean_value(patch, patch_w, patch_h);
-	int patch_pixels_squared_sum = calc_pixels_squared_sum(patch, patch_w, patch_h);
-	float patch_pixels_squared_normalized =
-			n_squared_inv * patch_pixels_squared_sum - patch_mean_value * patch_mean_value;
-
-	float max_correlation = -1;
+	int max_correlation = 9999999;
 	int correlation_x = -1;
 	int correlation_y = -1;
 
 	for (int y = 0; y <= img_h - patch_h; ++y) {
 		for (int x = 0; x <= img_w - patch_w; ++x) {
 
-			float img_mean_value = calc_pixels_mean_value(img, patch_w, patch_h, x, y);
-			int img_pixels_squared_sum = calc_pixels_squared_sum(img, patch_w, patch_h, x, y);
-			float img_pixels_squared_normalized =
-					n_squared_inv * img_pixels_squared_sum - img_mean_value * img_mean_value;
-
-			float denominator = sqrtf(img_pixels_squared_normalized * patch_pixels_squared_normalized);
-
-			if (denominator == 0) {
-				continue;
-			}
-
-			float numerator = n_squared_inv * calc_pixels_a_times_b_sum(img, patch, patch_w, patch_h, x, y) - img_mean_value * patch_mean_value;
-			float correlation = numerator / denominator;
-
-			if (correlation > max_correlation) {
+			int correlation = calc_pixels_abs_a_minus_b_sum(img, patch, patch_w, patch_h, x, y);
+			if (correlation < max_correlation) {
 				max_correlation = correlation;
 				correlation_x = x;
 				correlation_y = y;
