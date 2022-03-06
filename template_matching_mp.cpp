@@ -70,8 +70,11 @@ void match_patch(unsigned char **img, int img_w, int img_h, unsigned char **patc
 	int correlation_x = -1;
 	int correlation_y = -1;
 
+    #pragma omp parallel for collapse(2)
 	for (int y = 0; y <= img_h - patch_h; ++y) {
 		for (int x = 0; x <= img_w - patch_w; ++x) {
+            //auto num = omp_get_num_threads();
+            //printf("%d\n",num);
 
 			float img_mean_value = calc_pixels_mean_value(img, patch_w, patch_h, x, y);
 			int img_pixels_squared_sum = calc_pixels_squared_sum(img, patch_w, patch_h, x, y);

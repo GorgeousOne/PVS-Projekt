@@ -119,8 +119,8 @@ unsigned char **alloc_mat(int cols, int rows) {
 }
 
 int main(int argc, char **argv) {
-	char *const img_path = argv[1];
-	char *const patch_path = argv[2];
+	char *const img_path = "../search_area_small.jpg";
+	char *const patch_path = "../nemo_template.png";
 
 	int img_w = 0;
 	int img_h = 0;
@@ -150,10 +150,28 @@ int main(int argc, char **argv) {
 
 	array_to_matrix(img2d, img, img_w, img_h);
 	array_to_matrix(patch2d, patch, patch_w, patch_h);
-
+    "------------------------------------------------------------------------------------------------------------------";
 	double start, end;
 	start = omp_get_wtime();
-	match_patch(img2d, img_w, img_h, patch2d, patch_w, patch_h);
+    int processID, commSize;
+    int offsetTag = 1;
+    int rowCountTag = 1;
+    int matrixATag = 1;
+    int matrixBTag = 1;
+    int matrixCTag = 1;
+
+    MPI_Init(&argc, &argv);
+    MPI_Comm_size(MPI_COMM_WORLD, &commSize);
+    MPI_Comm_rank(MPI_COMM_WORLD, &processID);
+    MPI_Status status;
+
+    if (processID == 0) {
+        printf("%d%d\n",commSize,processID);
+    }
+    if (processID != 0) {
+        printf("%d%d\n",commSize,processID);
+    }
+	//match_patch(img2d, img_w, img_h, patch2d, patch_w, patch_h);
 	end = omp_get_wtime();
 	printf("Task took %fs to complete.\n", end - start);
 }
