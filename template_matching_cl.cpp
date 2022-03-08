@@ -75,13 +75,13 @@ T **alloc_mat(int cols, int rows) {
 }
 
 template<class T>
-void print_mat(T **A, int row, int col, char const *tag) {
-	int i, j;
+void print_mat(T **A, int cols, int rows, char const *tag) {
+	int y, x;
 
 	printf("Matrix: %s\n", tag);
-	for (j = 0; j < col; j++) {
-		for (i = 0; i < row; i++) {
-			printf("%i  ", A[i][j]);
+	for (y = 0; y < rows; y++) {
+		for (x = 0; x < cols; x++) {
+			printf("%i  ", A[x][y]);
 		}
 		printf("\n");
 	}
@@ -123,13 +123,7 @@ int main(int argc, char **argv) {
 	cl_command_queue command_queue;
 	cl_program program;
 
-//	float **A, **B, **C, **D;
-	cl_mem img_buffer, patch_buffer, result_buffer;
-//	size_t global[2] = {DIM, DIM};
-
-//	A = alloc_mat(DIM, DIM); init_mat(A, DIM, DIM);
-//	B = alloc_mat(DIM, DIM); init_mat(B, DIM, DIM);
-//	C = alloc_mat(DIM, DIM);
+	cl_mem img_buffer, patch_buffer, result_buffer, dims_buffer;
 
 	char *const img_path = argv[1];
 	char *const patch_path = argv[2];
@@ -171,6 +165,7 @@ int main(int argc, char **argv) {
 			static_cast<size_t>(result_w),
 			static_cast<size_t>(result_h)};
 
+	int heights[4] {img_w, img_h, patch_w, patch_h};
 	auto start = std::chrono::steady_clock::now();
 
 	/* 1) */
@@ -214,29 +209,28 @@ int main(int argc, char **argv) {
 	kernel = clCreateKernel(program, "match_patch", &err);
 	checkErr(err, "Error setting kernel.");
 
-
 	/* 2) */
 	//Erstellt Buffer für input und output
-//	Abuffer = clCreateBuffer(context, CL_MEM_READ_ONLY, MEM_SIZE, NULL, &err);
-//	Bbuffer = clCreateBuffer(context, CL_MEM_READ_ONLY, MEM_SIZE, NULL, &err);
-//	Cbuffer = clCreateBuffer(context, CL_MEM_READ_WRITE, MEM_SIZE, NULL, &err);
-
 	size_t img_mem_size = sizeof(unsigned char) * img_w * img_h;
 	size_t patch_mem_size = sizeof(unsigned char) * patch_w * patch_h;
 	size_t result_mem_size = sizeof(int) * result_w * result_h;
+	size_t heights_mem_size = sizeof(int) * 4;
 
 	img_buffer = clCreateBuffer(context, CL_MEM_READ_ONLY, img_mem_size, NULL, &err);
 	patch_buffer = clCreateBuffer(context, CL_MEM_READ_ONLY, patch_mem_size, NULL, &err);
 	result_buffer = clCreateBuffer(context, CL_MEM_READ_WRITE, result_mem_size, NULL, &err);
+	dims_buffer = clCreateBuffer(context, CL_MEM_READ_WRITE, heights_mem_size, NULL, &err);
 
 	//Kopiert zusammenhängende Daten aus data in den Eingabe-Puffer
 	clEnqueueWriteBuffer(command_queue, img_buffer, CL_TRUE, 0, img_mem_size, img2d[0], 0, NULL, NULL);
 	clEnqueueWriteBuffer(command_queue, patch_buffer, CL_TRUE, 0, patch_mem_size, patch2d[0], 0, NULL, NULL);
+	clEnqueueWriteBuffer(command_queue, dims_buffer, CL_TRUE, 0, heights_mem_size, heights, 0, NULL, NULL);
 
 	//Definiert Reihenfolge der Kernel-Argumente
 	clSetKernelArg(kernel, 0, sizeof(cl_mem), &img_buffer);
 	clSetKernelArg(kernel, 1, sizeof(cl_mem), &patch_buffer);
-	clSetKernelArg(kernel, 2, sizeof(cl_mem), &result_buffer);
+	clSetKernelArg(kernel, 2, sizeof(cl_mem), &dims_buffer);
+	clSetKernelArg(kernel, 3, sizeof(cl_mem), &result_buffer);
 
 	/* 3)  */
 	//Einreihen des Kerns in die Befehlswarteschlange und Aufteilungsbereich angeben
@@ -246,22 +240,23 @@ int main(int argc, char **argv) {
 	//Kopiere die Ergebnisse vom Ausgabe-Puffer 'output' in das Ergebnisfeld 'results'
 	clEnqueueReadBuffer(command_queue, result_buffer, CL_TRUE, 0, result_mem_size, result2d[0], 0, NULL, NULL);
 
-	print_mat(img2d, 10, 10, "original");
-	print_mat(result2d, 10, 10, "result");
+//	print_mat(img2d, 10, 10, "original");
+//	print_mat(result2d, 10, 10, "result");
 
-	float max_correlation = 999999;
-	int min_x = -1;
-	int min_y = -1;
-	for (int j = 0; j < result_w; j++) {
-		for (int i = 0; i < result_h; i++) {
+	int max_correlation = 999999;
+	int max_x = -1;
+	int max_y = -1;
+	for (int j = 0; j < result_h; j++) {
+		for (int i = 0; i < result_w; i++) {
 			if (result2d[i][j] < max_correlation) {
 				max_correlation = result2d[i][j];
-				min_x = i;
-				min_y = j;
+				max_x = i;
+				max_y = j;
 			}
 		}
 	}
-	printf("max corr: %i, %i\n", min_x, min_y);
+	printf("Max correlation: %i, %i\n", max_x, max_y, max_correlation);
+
 	/* 4) */
 	clReleaseMemObject(img_buffer);
 	clReleaseMemObject(patch_buffer);
@@ -274,6 +269,5 @@ int main(int argc, char **argv) {
 	auto finish = std::chrono::steady_clock::now();
 	auto delta = std::chrono::duration_cast<std::chrono::milliseconds>(finish - start);
 	printf("Execution time parallel: %d ms\n", delta);
-
 	return 0;
 }
