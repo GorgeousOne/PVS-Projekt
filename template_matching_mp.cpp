@@ -1,5 +1,4 @@
 #include <omp.h>
-#include <mpi.h>
 #include <unistd.h>
 
 #define STB_IMAGE_IMPLEMENTATION

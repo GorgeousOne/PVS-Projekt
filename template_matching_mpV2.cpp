@@ -1,4 +1,4 @@
-#include <mpi.h>
+#include <omp.h>
 #include <unistd.h>
 
 #define STB_IMAGE_IMPLEMENTATION
@@ -17,6 +17,7 @@ void print_path(char *file_name) {
 
 float calc_pixels_mean_value(unsigned char **img, int w, int h, int x = 0, int y = 0) {
 	int pixel_sum = 0;
+    #pragma omp parallel for reduction(+ : pixel_sum)
 	for (int dy = 0; dy < h; ++dy) {
 		for (int dx = 0; dx < w; ++dx) {
 			pixel_sum += img[x + dx][y + dy];
@@ -57,7 +58,7 @@ void crop(unsigned char **matrix, int x, int y, int w, int h, const char* fileNa
 	stbi_write_jpg(fileName, w, h, 1, patch, 100);
 }
 
-void match_patch(unsigned char **img, int img_w, int img_h, unsigned char **patch, int patch_w, int patch_h, int start_x, int start_y) {
+void match_patch(unsigned char **img, int img_w, int img_h, unsigned char **patch, int patch_w, int patch_h) {
 
 	float n_squared_inv = 1.0f / (patch_w * patch_h);
 	float patch_mean_value = calc_pixels_mean_value(patch, patch_w, patch_h);
@@ -69,11 +70,40 @@ void match_patch(unsigned char **img, int img_w, int img_h, unsigned char **patc
 	int correlation_x = -1;
 	int correlation_y = -1;
 
-	for (int y = start_y; y <= img_h - patch_h; ++y) {
-		for (int x = start_x; x <= img_w - patch_w; ++x) {
-
-			float img_mean_value = calc_pixels_mean_value(img, patch_w, patch_h, x, y);
-			int img_pixels_squared_sum = calc_pixels_squared_sum(img, patch_w, patch_h, x, y);
+	for (int y = 0; y <= img_h - patch_h; ++y) {
+		for (int x = 0; x <= img_w - patch_w; ++x) {
+            int pixel_sum_m = 0;
+            int pixels_squared_sum = 0;
+            int pixel_sum_a_b = 0;
+            #pragma omp parallel
+            {
+                //auto num = omp_get_num_threads();
+                //printf("%d\n",num);
+                "-----------------------------------------------------------------------------------------------------";
+                #pragma omp for collapse(2) reduction(+ : pixel_sum_m)
+                for (int dy = 0; dy < patch_h; ++dy) {
+                    for (int dx = 0; dx < patch_w; ++dx) {
+                        pixel_sum_m += img[x + dx][y + dy];
+                    }
+                }
+                "-----------------------------------------------------------------------------------------------------";
+                #pragma omp for collapse(2) reduction(+ : pixels_squared_sum)
+                for (int dy = 0; dy < patch_h; ++dy) {
+                    for (int dx = 0; dx < patch_w; ++dx) {
+                        int pixel = img[x + dx][y + dy];
+                        pixels_squared_sum += pixel * pixel;
+                    }
+                }
+                "-----------------------------------------------------------------------------------------------------";
+                #pragma omp for collapse(2) reduction(+ : pixel_sum_a_b)
+                for (int dy = 0; dy < patch_h; ++dy) {
+                    for (int dx = 0; dx < patch_w; ++dx) {
+                        pixel_sum_a_b += img[x + dx][y + dy] * patch[dx][dy];
+                    }
+                }
+            }
+            float img_mean_value = 1.0f * pixel_sum_m / (patch_w * patch_h);
+			int img_pixels_squared_sum = pixels_squared_sum;
 			float img_pixels_squared_normalized =
 					n_squared_inv * img_pixels_squared_sum - img_mean_value * img_mean_value;
 
@@ -83,7 +113,7 @@ void match_patch(unsigned char **img, int img_w, int img_h, unsigned char **patc
 				continue;
 			}
 
-			float numerator = n_squared_inv * calc_pixels_a_times_b_sum(img, patch, patch_w, patch_h, x, y) - img_mean_value * patch_mean_value;
+			float numerator = n_squared_inv * pixel_sum_a_b - img_mean_value * patch_mean_value;
 			float correlation = numerator / denominator;
 
 			if (correlation > max_correlation) {
@@ -118,74 +148,41 @@ unsigned char **alloc_mat(int cols, int rows) {
 }
 
 int main(int argc, char **argv) {
-    int processID, commSize;
-    int offsetTag = 1;
-    int rowCountTag = 1;
-    int matrixATag = 1;
-    int matrixBTag = 1;
-    int matrixCTag = 1;
+	char *const img_path = argv[1];
+	char *const patch_path = argv[2];
 
-    MPI_Init(&argc, &argv);
-    MPI_Comm_size(MPI_COMM_WORLD, &commSize);
-    MPI_Comm_rank(MPI_COMM_WORLD, &processID);
-    MPI_Status status;
+	int img_w = 0;
+	int img_h = 0;
+	int img_c = 0; // number of image channels
+	int desired_c = 1;
 
-    int offset_x;
-    int offset_y;
-    if (processID == 0) {
-        printf("%d%d\n",commSize,processID);
-        "------------------------------------------------------------------------------------------------------------------";
-        double start, end;
-        start = MPI_Wtime();
+	unsigned char *img = NULL;
+	//load RGB image as 1 channel grayscale image (1x unsigned 8 bit per pixel)
+	img = stbi_load(img_path, &img_w, &img_h, &img_c, desired_c);
+	printf("\nLoaded image: %s\n", (img != NULL ? "true" : "false"));
+	print_path(img_path);
+	printf("\twidth: %d\n", img_w);
+	printf("\theight: %d\n", img_h);
 
-        char* const img_path = "./search_area_small.jpg";
-        char* const patch_path = "./nemo_template.png";
+	int patch_w = 0;
+	int patch_h = 0;
+	int patch_c = 0;
+	unsigned char *patch = NULL;
+	patch = stbi_load(patch_path, &patch_w, &patch_h, &patch_c, desired_c);
+	printf("\nLoaded patch: %s\n", (patch != NULL ? "true" : "false"));
+	print_path(patch_path);
+	printf("\twidth: %d\n", patch_w);
+	printf("\theight: %d\n", patch_h);
 
-        int img_w = 0;
-        int img_h = 0;
-        int img_c = 0; // number of image channels
-        int desired_c = 1;
+	unsigned char **img2d = alloc_mat(img_w, img_h);
+	unsigned char **patch2d = alloc_mat(patch_w, patch_h);
 
-        unsigned char *img = NULL;
-        //load RGB image as 1 channel grayscale image (1x unsigned 8 bit per pixel)
-        img = stbi_load(img_path, &img_w, &img_h, &img_c, desired_c);
-        printf("\nLoaded image: %s\n", (img != NULL ? "true" : "false"));
-        print_path(img_path);
-        printf("\twidth: %d\n", img_w);
-        printf("\theight: %d\n", img_h);
+	array_to_matrix(img2d, img, img_w, img_h);
+	array_to_matrix(patch2d, patch, patch_w, patch_h);
 
-        int patch_w = 0;
-        int patch_h = 0;
-        int patch_c = 0;
-        unsigned char *patch = NULL;
-        patch = stbi_load(patch_path, &patch_w, &patch_h, &patch_c, desired_c);
-        printf("\nLoaded patch: %s\n", (patch != NULL ? "true" : "false"));
-        print_path(patch_path);
-        printf("\twidth: %d\n", patch_w);
-        printf("\theight: %d\n", patch_h);
-
-        unsigned char **img2d = alloc_mat(img_w, img_h);
-        unsigned char **patch2d = alloc_mat(patch_w, patch_h);
-
-        array_to_matrix(img2d, img, img_w, img_h);
-        array_to_matrix(patch2d, patch, patch_w, patch_h);
-
-        offset_x = 0;
-        offset_y = 0;
-
-        for (int workerID = 1; workerID < commSize; ++workerID) {
-            MPI_Send(&offset_x, 1, MPI_INT, workerID, offsetTag, MPI_COMM_WORLD);
-            MPI_Send(&offset_y, 1, MPI_INT, workerID, offsetTag, MPI_COMM_WORLD);
-        }
-
-        //match_patch(img2d, img_w, img_h, patch2d, patch_w, patch_h);
-        end = MPI_Wtime();
-        printf("Task took %fs to complete.\n", end - start);
-    }
-    if (processID != 0) {
-        MPI_Recv(&offset_x, 1, MPI_INT, 0, offsetTag, MPI_COMM_WORLD, &status);
-        MPI_Recv(&offset_y, 1, MPI_INT, 0, offsetTag, MPI_COMM_WORLD, &status);
-        printf("%d%d\n",commSize,processID);
-    }
-    MPI_Finalize();
+	double start, end;
+	start = omp_get_wtime();
+	match_patch(img2d, img_w, img_h, patch2d, patch_w, patch_h);
+	end = omp_get_wtime();
+	printf("Task took %fs to complete.\n", end - start);
 }
