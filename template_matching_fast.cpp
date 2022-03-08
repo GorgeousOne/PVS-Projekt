@@ -23,6 +23,9 @@ int calc_pixels_abs_a_minus_b_sum(unsigned char **img_a, unsigned char **patch_b
 			pixel_sum += abs(img_a[img_x + x][img_y + y] - patch_b[x][y]);
 		}
 	}
+	if (img_x < 5 && img_y < 5) {
+		printf("%i\n", pixel_sum);
+	}
 	return pixel_sum;
 }
 

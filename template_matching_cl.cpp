@@ -113,7 +113,6 @@ void print_path(char *file_name) {
 
 /** **/
 int main(int argc, char **argv) {
-
 	cl_int err;
 	cl_platform_id *platforms = NULL;
 	cl_device_id device_id = NULL;
@@ -158,16 +157,19 @@ int main(int argc, char **argv) {
 	printf("\twidth: %d\n", patch_w);
 	printf("\theight: %d\n", patch_h);
 
+	int result_w = (img_w - patch_w);
+	int result_h = (img_h - patch_h);
+
 	unsigned char **img2d = alloc_mat<unsigned char>(img_w, img_h);
 	unsigned char **patch2d = alloc_mat<unsigned char>(patch_w, patch_h);
-	unsigned char **result2d = alloc_mat<unsigned char>(img_w - patch_w, img_h - patch_h);
+	int **result2d = alloc_mat<int>(result_w, result_h);
 
 	array_to_matrix(img2d, img, img_w, img_h);
 	array_to_matrix(patch2d, patch, patch_w, patch_h);
+
 	size_t global[2] = {
-			static_cast<size_t>(img_w - patch_w),
-			static_cast<size_t>(img_h - patch_h)
-	};
+			static_cast<size_t>(result_w),
+			static_cast<size_t>(result_h)};
 
 	auto start = std::chrono::steady_clock::now();
 
@@ -219,9 +221,9 @@ int main(int argc, char **argv) {
 //	Bbuffer = clCreateBuffer(context, CL_MEM_READ_ONLY, MEM_SIZE, NULL, &err);
 //	Cbuffer = clCreateBuffer(context, CL_MEM_READ_WRITE, MEM_SIZE, NULL, &err);
 
-	size_t img_mem_size = img_w * img_h;
-	size_t patch_mem_size = patch_w * patch_h;
-	size_t result_mem_size = global[0] * global[1];
+	size_t img_mem_size = sizeof(unsigned char) * img_w * img_h;
+	size_t patch_mem_size = sizeof(unsigned char) * patch_w * patch_h;
+	size_t result_mem_size = sizeof(int) * result_w * result_h;
 
 	img_buffer = clCreateBuffer(context, CL_MEM_READ_ONLY, img_mem_size, NULL, &err);
 	patch_buffer = clCreateBuffer(context, CL_MEM_READ_ONLY, patch_mem_size, NULL, &err);
@@ -247,6 +249,19 @@ int main(int argc, char **argv) {
 	print_mat(img2d, 10, 10, "original");
 	print_mat(result2d, 10, 10, "result");
 
+	float max_correlation = 999999;
+	int min_x = -1;
+	int min_y = -1;
+	for (int j = 0; j < result_w; j++) {
+		for (int i = 0; i < result_h; i++) {
+			if (result2d[i][j] < max_correlation) {
+				max_correlation = result2d[i][j];
+				min_x = i;
+				min_y = j;
+			}
+		}
+	}
+	printf("max corr: %i, %i\n", min_x, min_y);
 	/* 4) */
 	clReleaseMemObject(img_buffer);
 	clReleaseMemObject(patch_buffer);
@@ -255,7 +270,6 @@ int main(int argc, char **argv) {
 	clReleaseKernel(kernel);
 	clReleaseCommandQueue(command_queue);
 	clReleaseContext(context);
-
 
 	auto finish = std::chrono::steady_clock::now();
 	auto delta = std::chrono::duration_cast<std::chrono::milliseconds>(finish - start);
