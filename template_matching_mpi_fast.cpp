@@ -36,7 +36,7 @@ int* match_patch(unsigned char** img, int img_w, int img_h, unsigned char** patc
 		for (int x = 0; x <= img_w - patch_w; ++x) {
 			int correlation = calc_pixels_abs_a_minus_b_sum(img, patch, patch_w, patch_h, x, y);
 
-			if (correlation > max_correlation) {
+			if (correlation < max_correlation) {
 				max_correlation = correlation;
 				correlation_x = x;
 				correlation_y = y;
@@ -139,6 +139,7 @@ int main(int argc, char** argv) {
 		}
 
 		int* max_cor = match_patch(img2d, img_w, img_h, patch2d, patch_w, patch_h, 0, img_h - offset_y * worker_count, 0);
+
 		int max_correlation = max_cor[0];
 		int max_correlation_x = max_cor[1];
 		int max_correlation_y = max_cor[2];
@@ -147,7 +148,7 @@ int main(int argc, char** argv) {
 			MPI_Recv(&w_max_correlation, 1, MPI_INT, workerID, offsetTag, MPI_COMM_WORLD, &status);
 			MPI_Recv(&w_correlation_x, 1, MPI_INT, workerID, offsetTag, MPI_COMM_WORLD, &status);
 			MPI_Recv(&w_correlation_y, 1, MPI_INT, workerID, offsetTag, MPI_COMM_WORLD, &status);
-			if (w_max_correlation > max_correlation) {
+			if (w_max_correlation < max_correlation) {
 				max_correlation = w_max_correlation;
 				max_correlation_x = w_correlation_x;
 				max_correlation_y = w_correlation_y;
