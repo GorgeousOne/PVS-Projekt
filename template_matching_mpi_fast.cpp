@@ -5,38 +5,6 @@
 #include "stb_image.h"
 #include "stb_image_write.h"
 
-
-float calc_pixels_mean_value(unsigned char** img, int w, int h, int x = 0, int y = 0) {
-	int pixel_sum = 0;
-	for (int dy = 0; dy < h; ++dy) {
-		for (int dx = 0; dx < w; ++dx) {
-			pixel_sum += img[x + dx][y + dy];
-		}
-	}
-	return 1.0f * pixel_sum / (w * h);
-}
-
-int calc_pixels_a_times_b_sum(unsigned char** img_a, unsigned char** patch_b, int w, int h, int img_x, int img_y) {
-	int pixel_sum = 0;
-	for (int dy = 0; dy < h; ++dy) {
-		for (int dx = 0; dx < w; ++dx) {
-			pixel_sum += img_a[img_x + dx][img_y + dy] * patch_b[dx][dy];
-		}
-	}
-	return pixel_sum;
-}
-
-int calc_pixels_squared_sum(unsigned char** img, int w, int h, int x = 0, int y = 0) {
-	int pixels_squared_sum = 0;
-	for (int dy = 0; dy < h; ++dy) {
-		for (int dx = 0; dx < w; ++dx) {
-			int pixel = img[x + dx][y + dy];
-			pixels_squared_sum += pixel * pixel;
-		}
-	}
-	return pixels_squared_sum;
-}
-
 void crop(unsigned char** matrix, int x, int y, int w, int h, const char* fileName) {
 	unsigned char* patch = (unsigned char*)calloc(w * h, sizeof(unsigned char));
 	int k = 0;
@@ -48,36 +16,27 @@ void crop(unsigned char** matrix, int x, int y, int w, int h, const char* fileNa
 	stbi_write_jpg(fileName, w, h, 1, patch, 100);
 }
 
+int calc_pixels_abs_a_minus_b_sum(unsigned char** img_a, unsigned char** patch_b, int w, int h, int img_x, int img_y) {
+	int pixel_sum = 0;
+	for (int y = 0; y < h; ++y) {
+		for (int x = 0; x < w; ++x) {
+			pixel_sum += abs(img_a[img_x + x][img_y + y] - patch_b[x][y]);
+		}
+	}
+	return pixel_sum;
+}
+
 int* match_patch(unsigned char** img, int img_w, int img_h, unsigned char** patch, int patch_w, int patch_h, int start_y, int end_y, int part) {
 
-	float n_squared_inv = 1.0f / (patch_w * patch_h);
-	float patch_mean_value = calc_pixels_mean_value(patch, patch_w, patch_h);
-	int patch_pixels_squared_sum = calc_pixels_squared_sum(patch, patch_w, patch_h);
-	float patch_pixels_squared_normalized =
-		n_squared_inv * patch_pixels_squared_sum - patch_mean_value * patch_mean_value;
-
-	float max_correlation = -1;
+	int max_correlation = 9999999;
 	int correlation_x = -1;
 	int correlation_y = -1;
 
 	for (int y = start_y; y <= end_y - patch_h; ++y) {
-		//printf("%d\n", y);
 		for (int x = 0; x <= img_w - patch_w; ++x) {
-			float img_mean_value = calc_pixels_mean_value(img, patch_w, patch_h, x, y);
-			int img_pixels_squared_sum = calc_pixels_squared_sum(img, patch_w, patch_h, x, y);
-			float img_pixels_squared_normalized =
-				n_squared_inv * img_pixels_squared_sum - img_mean_value * img_mean_value;
+			int correlation = calc_pixels_abs_a_minus_b_sum(img, patch, patch_w, patch_h, x, y);
 
-			float denominator = sqrtf(img_pixels_squared_normalized * patch_pixels_squared_normalized);
-
-			if (denominator == 0) {
-				continue;
-			}
-
-			float numerator = n_squared_inv * calc_pixels_a_times_b_sum(img, patch, patch_w, patch_h, x, y) - img_mean_value * patch_mean_value;
-			float correlation = numerator / denominator;
-
-			if (correlation > max_correlation) {
+			if (correlation < max_correlation) {
 				max_correlation = correlation;
 				correlation_x = x;
 				correlation_y = y;
@@ -85,7 +44,7 @@ int* match_patch(unsigned char** img, int img_w, int img_h, unsigned char** patc
 		}
 	}
 	int cor[3];
-	cor[0] = max_correlation * 1000000;
+	cor[0] = max_correlation;
 	cor[1] = correlation_x;
 	cor[2] = correlation_y;
 	printf("maximum of patch %i: %i, %i\n", part, correlation_x, correlation_y);
@@ -180,6 +139,7 @@ int main(int argc, char** argv) {
 		}
 
 		int* max_cor = match_patch(img2d, img_w, img_h, patch2d, patch_w, patch_h, 0, img_h - offset_y * worker_count, 0);
+
 		int max_correlation = max_cor[0];
 		int max_correlation_x = max_cor[1];
 		int max_correlation_y = max_cor[2];
@@ -188,7 +148,7 @@ int main(int argc, char** argv) {
 			MPI_Recv(&w_max_correlation, 1, MPI_INT, workerID, offsetTag, MPI_COMM_WORLD, &status);
 			MPI_Recv(&w_correlation_x, 1, MPI_INT, workerID, offsetTag, MPI_COMM_WORLD, &status);
 			MPI_Recv(&w_correlation_y, 1, MPI_INT, workerID, offsetTag, MPI_COMM_WORLD, &status);
-			if (w_max_correlation > max_correlation) {
+			if (w_max_correlation < max_correlation) {
 				max_correlation = w_max_correlation;
 				max_correlation_x = w_correlation_x;
 				max_correlation_y = w_correlation_y;

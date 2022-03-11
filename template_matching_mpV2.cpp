@@ -17,6 +17,7 @@ void print_path(char *file_name) {
 
 float calc_pixels_mean_value(unsigned char **img, int w, int h, int x = 0, int y = 0) {
 	int pixel_sum = 0;
+    #pragma omp parallel for reduction(+ : pixel_sum)
 	for (int dy = 0; dy < h; ++dy) {
 		for (int dx = 0; dx < w; ++dx) {
 			pixel_sum += img[x + dx][y + dy];
@@ -69,14 +70,40 @@ void match_patch(unsigned char **img, int img_w, int img_h, unsigned char **patc
 	int correlation_x = -1;
 	int correlation_y = -1;
 
-    #pragma omp parallel for collapse(2)
 	for (int y = 0; y <= img_h - patch_h; ++y) {
 		for (int x = 0; x <= img_w - patch_w; ++x) {
-            //auto num = omp_get_num_threads();
-            //printf("%d\n",num);
-
-			float img_mean_value = calc_pixels_mean_value(img, patch_w, patch_h, x, y);
-			int img_pixels_squared_sum = calc_pixels_squared_sum(img, patch_w, patch_h, x, y);
+            int pixel_sum_m = 0;
+            int pixels_squared_sum = 0;
+            int pixel_sum_a_b = 0;
+            #pragma omp parallel
+            {
+                //auto num = omp_get_num_threads();
+                //printf("%d\n",num);
+                "-----------------------------------------------------------------------------------------------------";
+                #pragma omp for collapse(2) reduction(+ : pixel_sum_m)
+                for (int dy = 0; dy < patch_h; ++dy) {
+                    for (int dx = 0; dx < patch_w; ++dx) {
+                        pixel_sum_m += img[x + dx][y + dy];
+                    }
+                }
+                "-----------------------------------------------------------------------------------------------------";
+                #pragma omp for collapse(2) reduction(+ : pixels_squared_sum)
+                for (int dy = 0; dy < patch_h; ++dy) {
+                    for (int dx = 0; dx < patch_w; ++dx) {
+                        int pixel = img[x + dx][y + dy];
+                        pixels_squared_sum += pixel * pixel;
+                    }
+                }
+                "-----------------------------------------------------------------------------------------------------";
+                #pragma omp for collapse(2) reduction(+ : pixel_sum_a_b)
+                for (int dy = 0; dy < patch_h; ++dy) {
+                    for (int dx = 0; dx < patch_w; ++dx) {
+                        pixel_sum_a_b += img[x + dx][y + dy] * patch[dx][dy];
+                    }
+                }
+            }
+            float img_mean_value = 1.0f * pixel_sum_m / (patch_w * patch_h);
+			int img_pixels_squared_sum = pixels_squared_sum;
 			float img_pixels_squared_normalized =
 					n_squared_inv * img_pixels_squared_sum - img_mean_value * img_mean_value;
 
@@ -86,7 +113,7 @@ void match_patch(unsigned char **img, int img_w, int img_h, unsigned char **patc
 				continue;
 			}
 
-			float numerator = n_squared_inv * calc_pixels_a_times_b_sum(img, patch, patch_w, patch_h, x, y) - img_mean_value * patch_mean_value;
+			float numerator = n_squared_inv * pixel_sum_a_b - img_mean_value * patch_mean_value;
 			float correlation = numerator / denominator;
 
 			if (correlation > max_correlation) {
