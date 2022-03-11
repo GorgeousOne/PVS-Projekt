@@ -240,8 +240,6 @@ int main(int argc, char **argv) {
 	//Kopiere die Ergebnisse vom Ausgabe-Puffer 'output' in das Ergebnisfeld 'results'
 	clEnqueueReadBuffer(command_queue, result_buffer, CL_TRUE, 0, result_mem_size, result2d[0], 0, NULL, NULL);
 
-//	print_mat(img2d, 10, 10, "original");
-//	print_mat(result2d, 10, 10, "result");
 
 	int max_correlation = 999999;
 	int max_x = -1;
@@ -255,7 +253,7 @@ int main(int argc, char **argv) {
 			}
 		}
 	}
-	printf("Max correlation: %i, %i\n", max_x, max_y, max_correlation);
+	printf("Found nemo at x: %i, y: %i\n", max_x, max_y, max_correlation);
 
 	/* 4) */
 	clReleaseMemObject(img_buffer);

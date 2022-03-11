@@ -29,17 +29,6 @@ int calc_pixels_abs_a_minus_b_sum(unsigned char **img_a, unsigned char **patch_b
 	return pixel_sum;
 }
 
-void crop(unsigned char **matrix, int x, int y, int w, int h, const char* fileName) {
-	unsigned char *patch = (unsigned char *) calloc(w * h, sizeof(unsigned char));
-	int k = 0;
-	for (int dy = 0; dy < h; ++dy) {
-		for (int dx = 0; dx < w; ++dx) {
-			patch[k++] = matrix[x + dx][y + dy];
-		}
-	}
-	stbi_write_jpg(fileName, w, h, 1, patch, 100);
-}
-
 void match_patch(unsigned char **img, int img_w, int img_h, unsigned char **patch, int patch_w, int patch_h) {
 
 	int max_correlation = 9999999;
@@ -57,8 +46,7 @@ void match_patch(unsigned char **img, int img_w, int img_h, unsigned char **patc
 			}
 		}
 	}
-	printf("maximum: %i, %i\n", correlation_x, correlation_y);
-	crop(img, correlation_x, correlation_y, patch_w, patch_h, "nemo_found.jpg");
+	printf("Found nemo at x: %i y: %i\n", correlation_x, correlation_x);
 }
 
 // https://stackoverflow.com/questions/61410931/write-a-c-program-to-convert-1d-array-to-2d-array-using-pointers Besucht: 03.03.2022
