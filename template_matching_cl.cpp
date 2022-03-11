@@ -74,19 +74,6 @@ T **alloc_mat(int cols, int rows) {
 	return A1;
 }
 
-template<class T>
-void print_mat(T **A, int cols, int rows, char const *tag) {
-	int y, x;
-
-	printf("Matrix: %s\n", tag);
-	for (y = 0; y < rows; y++) {
-		for (x = 0; x < cols; x++) {
-			printf("%i  ", A[x][y]);
-		}
-		printf("\n");
-	}
-}
-
 void free_mat(float **A) {
 	free(A[0]); // free contiguous block of float elements (row*col floats)
 	free(A);    // free memory for pointers pointing to the beginning of each row
@@ -99,15 +86,6 @@ void array_to_matrix(unsigned char **matrix, const unsigned char *arr, int cols,
 		for (int x = 0; x < cols; ++x) {
 			matrix[x][y] = arr[k++];
 		}
-	}
-}
-
-void print_path(char *file_name) {
-	char cwd[PATH_MAX];
-	if (getcwd(cwd, sizeof(cwd)) != NULL) {
-		printf("File path: %s%s%s\n", cwd, "/", file_name);
-	} else {
-		perror("getcwd() error");
 	}
 }
 
@@ -137,7 +115,6 @@ int main(int argc, char **argv) {
 	//load RGB image as 1 channel grayscale image (1x unsigned 8 bit per pixel)
 	img = stbi_load(img_path, &img_w, &img_h, &img_c, desired_c);
 	printf("\nLoaded image: %s\n", (img != NULL ? "true" : "false"));
-	print_path(img_path);
 	printf("\twidth: %d\n", img_w);
 	printf("\theight: %d\n", img_h);
 
@@ -147,7 +124,6 @@ int main(int argc, char **argv) {
 	unsigned char *patch = NULL;
 	patch = stbi_load(patch_path, &patch_w, &patch_h, &patch_c, desired_c);
 	printf("\nLoaded patch: %s\n", (patch != NULL ? "true" : "false"));
-	print_path(patch_path);
 	printf("\twidth: %d\n", patch_w);
 	printf("\theight: %d\n", patch_h);
 
@@ -253,7 +229,6 @@ int main(int argc, char **argv) {
 			}
 		}
 	}
-	printf("Found nemo at x: %i, y: %i\n", max_x, max_y, max_correlation);
 
 	/* 4) */
 	clReleaseMemObject(img_buffer);
@@ -266,6 +241,8 @@ int main(int argc, char **argv) {
 
 	auto finish = std::chrono::steady_clock::now();
 	auto delta = std::chrono::duration_cast<std::chrono::milliseconds>(finish - start);
+	printf("Found Nemo at x: %i, y: %i\n", max_x, max_y, max_correlation);
 	printf("Execution time parallel: %d ms\n", delta);
+	free(A[0]); // free contiguous block of float elements (row*col floats)
 	return 0;
 }

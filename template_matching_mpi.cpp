@@ -167,7 +167,7 @@ int main(int argc, char** argv) {
 			}
 		}
 		end = MPI_Wtime();
-		printf("Found nemo at x: %i y: %i\n", max_correlation[1], max_correlation[2]);
+		printf("Found Nemo at x: %i y: %i\n", max_correlation[1], max_correlation[2]);
 		printf("Task took %fs to complete.\n", end - start);
 	}
 	if (processID != 0) {
