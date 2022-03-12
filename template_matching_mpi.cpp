@@ -5,36 +5,6 @@
 #include "stb_image.h"
 #include "stb_image_write.h"
 
-float calc_pixels_mean_value(unsigned char** img, int w, int h, int x = 0, int y = 0) {
-	int pixel_sum = 0;
-	for (int dy = 0; dy < h; ++dy) {
-		for (int dx = 0; dx < w; ++dx) {
-			pixel_sum += img[x + dx][y + dy];
-		}
-	}
-	return 1.0f * pixel_sum / (w * h);
-}
-
-int calc_pixels_a_times_b_sum(unsigned char** img_a, unsigned char** patch_b, int w, int h, int img_x, int img_y) {
-	int pixel_sum = 0;
-	for (int dy = 0; dy < h; ++dy) {
-		for (int dx = 0; dx < w; ++dx) {
-			pixel_sum += img_a[img_x + dx][img_y + dy] * patch_b[dx][dy];
-		}
-	}
-	return pixel_sum;
-}
-
-int calc_pixels_squared_sum(unsigned char** img, int w, int h, int x = 0, int y = 0) {
-	int pixels_squared_sum = 0;
-	for (int dy = 0; dy < h; ++dy) {
-		for (int dx = 0; dx < w; ++dx) {
-			int pixel = img[x + dx][y + dy];
-			pixels_squared_sum += pixel * pixel;
-		}
-	}
-	return pixels_squared_sum;
-}
 
 int calc_pixels_abs_a_minus_b_sum(unsigned char **img_a, unsigned char **patch_b, int w, int h, int img_x, int img_y) {
 	int pixel_sum = 0;
@@ -87,6 +57,12 @@ unsigned char** alloc_mat(int cols, int rows) {
 	return A1;
 }
 
+template<class T>
+void free_mat(T **A) {
+	free(A[0]); // free contiguous block of float elements (row*col floats)
+	free(A);    // free memory for pointers pointing to the beginning of each row
+}
+
 int main(int argc, char** argv) {
 	char *const img_path = argv[1];
 	char *const patch_path = argv[2];
@@ -136,22 +112,21 @@ int main(int argc, char** argv) {
 		start = MPI_Wtime();
 
 		int worker_count = comm_size - 1;
-		int wholePart = (img_w - patch_w) / worker_count;
+		int whole_part = (img_w - patch_w) / worker_count;
 		int remainder = (img_w - patch_w) % worker_count;
 		offset = 0;
 
-		for (int workerID = 1; workerID < comm_size; ++workerID) {
-			int segment_width = workerID <= remainder ? wholePart + 1 : wholePart;
+		for (int worker_id = 1; worker_id < comm_size; ++worker_id) {
+			int segment_width = worker_id <= remainder ? whole_part + 1 : whole_part;
 			int col_count = segment_width + (patch_w - 1);
 
-			MPI_Send(&patch_w, 1, MPI_INT, workerID, offsetTag, MPI_COMM_WORLD);
-			MPI_Send(&patch_h, 1, MPI_INT, workerID, offsetTag, MPI_COMM_WORLD);
-			MPI_Send(&patch2d[0][0], patch_w * patch_h, MPI_UNSIGNED_CHAR, workerID, offsetTag, MPI_COMM_WORLD);
-
-			MPI_Send(&col_count, 1, MPI_INT, workerID, offsetTag, MPI_COMM_WORLD);
-			MPI_Send(&img_h, 1, MPI_INT, workerID, offsetTag, MPI_COMM_WORLD);
-			MPI_Send(&offset, 1, MPI_INT, workerID, offsetTag, MPI_COMM_WORLD);
-			MPI_Send(&img2d[offset][0], col_count * img_h, MPI_UNSIGNED_CHAR, workerID, offsetTag, MPI_COMM_WORLD);
+			MPI_Send(&patch_w, 1, MPI_INT, worker_id, offsetTag, MPI_COMM_WORLD);
+			MPI_Send(&patch_h, 1, MPI_INT, worker_id, offsetTag, MPI_COMM_WORLD);
+			MPI_Send(&patch2d[0][0], patch_w * patch_h, MPI_UNSIGNED_CHAR, worker_id, offsetTag, MPI_COMM_WORLD);
+			MPI_Send(&col_count, 1, MPI_INT, worker_id, offsetTag, MPI_COMM_WORLD);
+			MPI_Send(&img_h, 1, MPI_INT, worker_id, offsetTag, MPI_COMM_WORLD);
+			MPI_Send(&offset, 1, MPI_INT, worker_id, offsetTag, MPI_COMM_WORLD);
+			MPI_Send(&img2d[offset][0], col_count * img_h, MPI_UNSIGNED_CHAR, worker_id, offsetTag, MPI_COMM_WORLD);
 			offset += segment_width;
 		}
 		int max_correlation[3] = {999999, -1, -1};
@@ -169,10 +144,15 @@ int main(int argc, char** argv) {
 		end = MPI_Wtime();
 		printf("Found Nemo at x: %i y: %i\n", max_correlation[1], max_correlation[2]);
 		printf("Task took %fs to complete.\n", end - start);
+		free_mat(img2d);
+		free_mat(patch2d);
+		free(img);
+		free(patch);
 	}
 	if (processID != 0) {
 		MPI_Recv(&patch_w, 1, MPI_INT, 0, offsetTag, MPI_COMM_WORLD, &status);
 		MPI_Recv(&patch_h, 1, MPI_INT, 0, offsetTag, MPI_COMM_WORLD, &status);
+
 		patch2d = alloc_mat(patch_w, patch_h);
 		MPI_Recv(&patch2d[0][0], patch_w * patch_h, MPI_UNSIGNED_CHAR, 0, offsetTag, MPI_COMM_WORLD, &status);
 
@@ -187,6 +167,9 @@ int main(int argc, char** argv) {
 		worker_correlation[1] += offset;
 
 		MPI_Send(&worker_correlation[0], 3, MPI_INT, 0, offsetTag, MPI_COMM_WORLD);
+		free_mat(img2d);
+		free_mat(patch2d);
 	}
 	MPI_Finalize();
+	return 0;
 }

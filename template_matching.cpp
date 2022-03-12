@@ -74,7 +74,7 @@ void match_patch(unsigned char **img, int img_w, int img_h, unsigned char **patc
 			}
 		}
 	}
-	printf("maximum: %i, %i\n", correlation_x, correlation_y);
+	printf("Found Nemo at x: %i y: %i\n", correlation_x, correlation_y);
 }
 
 // https://stackoverflow.com/questions/61410931/write-a-c-program-to-convert-1d-array-to-2d-array-using-pointers Besucht: 03.03.2022
@@ -95,6 +95,12 @@ unsigned char **alloc_mat(int cols, int rows) {
 		A1[x] = A2 + x * rows;
 	}
 	return A1;
+}
+
+template<class T>
+void free_mat(T **A) {
+	free(A[0]); // free contiguous block of float elements (row*col floats)
+	free(A);    // free memory for pointers pointing to the beginning of each row
 }
 
 int main(int argc, char **argv) {
@@ -133,4 +139,10 @@ int main(int argc, char **argv) {
 	match_patch(img2d, img_w, img_h, patch2d, patch_w, patch_h);
 	end = omp_get_wtime();
 	printf("Task took %fs to complete.\n", end - start);
+
+	free_mat(img2d);
+	free_mat(patch2d);
+	free(img);
+	free(patch);
+	return 0;
 }

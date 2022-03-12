@@ -57,6 +57,12 @@ unsigned char **alloc_mat(int cols, int rows) {
 	return A1;
 }
 
+template<class T>
+void free_mat(T **A) {
+	free(A[0]); // free contiguous block of float elements (row*col floats)
+	free(A);    // free memory for pointers pointing to the beginning of each row
+}
+
 int main(int argc, char **argv) {
 	char *const img_path = argv[1];
 	char *const patch_path = argv[2];
@@ -93,4 +99,10 @@ int main(int argc, char **argv) {
 	match_patch(img2d, img_w, img_h, patch2d, patch_w, patch_h);
 	end = omp_get_wtime();
 	printf("Task took %fs to complete.\n", end - start);
+
+	free_mat(img2d);
+	free_mat(patch2d);
+	free(img);
+	free(patch);
+	return 0;
 }

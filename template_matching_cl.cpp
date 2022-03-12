@@ -74,7 +74,8 @@ T **alloc_mat(int cols, int rows) {
 	return A1;
 }
 
-void free_mat(float **A) {
+template<class T>
+void free_mat(T **A) {
 	free(A[0]); // free contiguous block of float elements (row*col floats)
 	free(A);    // free memory for pointers pointing to the beginning of each row
 }
@@ -242,7 +243,11 @@ int main(int argc, char **argv) {
 	auto finish = std::chrono::steady_clock::now();
 	auto delta = std::chrono::duration_cast<std::chrono::milliseconds>(finish - start);
 	printf("Found Nemo at x: %i, y: %i\n", max_x, max_y, max_correlation);
-	printf("Execution time parallel: %d ms\n", delta);
-	free(A[0]); // free contiguous block of float elements (row*col floats)
+	printf("Task took %dms to complete.\n", delta);
+
+	free_mat(img2d);
+	free_mat(patch2d);
+	free(img);
+	free(patch);
 	return 0;
 }

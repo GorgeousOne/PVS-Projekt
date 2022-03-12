@@ -18,7 +18,6 @@ int calc_pixels_abs_a_minus_b_sum(unsigned char **img_a, unsigned char **patch_b
 }
 
 void match_patch(unsigned char **img, int img_w, int img_h, unsigned char **patch, int patch_w, int patch_h) {
-
 	int max_correlation = 9999999;
 	int correlation_x = -1;
 	int correlation_y = -1;
@@ -55,6 +54,12 @@ unsigned char **alloc_mat(int cols, int rows) {
 		A1[x] = A2 + x * rows;
 	}
 	return A1;
+}
+
+template<class T>
+void free_mat(T **A) {
+	free(A[0]); // free contiguous block of float elements (row*col floats)
+	free(A);    // free memory for pointers pointing to the beginning of each row
 }
 
 int main(int argc, char **argv) {
@@ -94,4 +99,9 @@ int main(int argc, char **argv) {
 	end = omp_get_wtime();
 
 	printf("Task took %fs to complete.\n", end - start);
+	free_mat(img2d);
+	free_mat(patch2d);
+	free(img);
+	free(patch);
+	return 0;
 }
