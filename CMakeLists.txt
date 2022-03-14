@@ -19,6 +19,16 @@ add_executable(finding_nemo_fast
         stb_image_write.h
         template_matching_fast.cpp)
 
+add_executable(finding_nemo_mp
+        stb_image.h
+        stb_image_write.h
+        template_matching_mp.cpp)
+
+add_executable(finding_nemo_mpi
+        stb_image.h
+        stb_image_write.h
+        template_matching_mpi.cpp)
+
 add_executable(finding_nemo_cl
         stb_image.h
         stb_image_write.h
@@ -26,7 +36,8 @@ add_executable(finding_nemo_cl
         kernel_source.cl)
 
 # link mpi
-#target_link_libraries(finding_nemo ${MPI_LIBRARIES})
-target_link_libraries(finding_nemo_cl MPI::MPI_CXX OpenCL::OpenCL)
+target_link_libraries(finding_nemo_mpi ${MPI_LIBRARIES})
+
+target_link_libraries(finding_nemo_cl OpenCL::OpenCL)
 
 include_directories(${MPI_INCLUDE_PATH})

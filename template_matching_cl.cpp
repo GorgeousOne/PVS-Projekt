@@ -75,19 +75,7 @@ T **alloc_mat(int cols, int rows) {
 }
 
 template<class T>
-void print_mat(T **A, int cols, int rows, char const *tag) {
-	int y, x;
-
-	printf("Matrix: %s\n", tag);
-	for (y = 0; y < rows; y++) {
-		for (x = 0; x < cols; x++) {
-			printf("%i  ", A[x][y]);
-		}
-		printf("\n");
-	}
-}
-
-void free_mat(float **A) {
+void free_mat(T **A) {
 	free(A[0]); // free contiguous block of float elements (row*col floats)
 	free(A);    // free memory for pointers pointing to the beginning of each row
 }
@@ -99,15 +87,6 @@ void array_to_matrix(unsigned char **matrix, const unsigned char *arr, int cols,
 		for (int x = 0; x < cols; ++x) {
 			matrix[x][y] = arr[k++];
 		}
-	}
-}
-
-void print_path(char *file_name) {
-	char cwd[PATH_MAX];
-	if (getcwd(cwd, sizeof(cwd)) != NULL) {
-		printf("File path: %s%s%s\n", cwd, "/", file_name);
-	} else {
-		perror("getcwd() error");
 	}
 }
 
@@ -137,7 +116,6 @@ int main(int argc, char **argv) {
 	//load RGB image as 1 channel grayscale image (1x unsigned 8 bit per pixel)
 	img = stbi_load(img_path, &img_w, &img_h, &img_c, desired_c);
 	printf("\nLoaded image: %s\n", (img != NULL ? "true" : "false"));
-	print_path(img_path);
 	printf("\twidth: %d\n", img_w);
 	printf("\theight: %d\n", img_h);
 
@@ -147,7 +125,6 @@ int main(int argc, char **argv) {
 	unsigned char *patch = NULL;
 	patch = stbi_load(patch_path, &patch_w, &patch_h, &patch_c, desired_c);
 	printf("\nLoaded patch: %s\n", (patch != NULL ? "true" : "false"));
-	print_path(patch_path);
 	printf("\twidth: %d\n", patch_w);
 	printf("\theight: %d\n", patch_h);
 
@@ -240,8 +217,6 @@ int main(int argc, char **argv) {
 	//Kopiere die Ergebnisse vom Ausgabe-Puffer 'output' in das Ergebnisfeld 'results'
 	clEnqueueReadBuffer(command_queue, result_buffer, CL_TRUE, 0, result_mem_size, result2d[0], 0, NULL, NULL);
 
-//	print_mat(img2d, 10, 10, "original");
-//	print_mat(result2d, 10, 10, "result");
 
 	int max_correlation = 999999;
 	int max_x = -1;
@@ -255,7 +230,6 @@ int main(int argc, char **argv) {
 			}
 		}
 	}
-	printf("Max correlation: %i, %i\n", max_x, max_y, max_correlation);
 
 	/* 4) */
 	clReleaseMemObject(img_buffer);
@@ -268,6 +242,12 @@ int main(int argc, char **argv) {
 
 	auto finish = std::chrono::steady_clock::now();
 	auto delta = std::chrono::duration_cast<std::chrono::milliseconds>(finish - start);
-	printf("Execution time parallel: %d ms\n", delta);
+	printf("Found Nemo at x: %i, y: %i\n", max_x, max_y, max_correlation);
+	printf("Task took %dms to complete.\n", delta);
+
+	free_mat(img2d);
+	free_mat(patch2d);
+	free(img);
+	free(patch);
 	return 0;
 }
