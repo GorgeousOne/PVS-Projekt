@@ -11,7 +11,7 @@ Kommandozeilenparameter jeweils 2 Argumente übergeben:
 
 ### OpenMPI
 Das OpenMPI Programm "template_matching_mpi.cpp" kann mit  
-`mpiexec -n <worker count> <seearch area image path> <nemo template image path>`  
+`mpiexec -n <worker count> <search area image path> <nemo template image path>`  
 ausgeführt werden.
 
 
