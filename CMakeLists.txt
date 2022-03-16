@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.20)
+cmake_minimum_required(VERSION 3.19)
 project(finding_nemo)
 
 set(CMAKE_CXX_STANDARD 14)
@@ -32,12 +32,10 @@ add_executable(finding_nemo_mpi
 add_executable(finding_nemo_cl
         stb_image.h
         stb_image_write.h
-        template_matching_cl.cpp
-        kernel_source.cl)
+        template_matching_cl.cpp)
 
 # link mpi
 target_link_libraries(finding_nemo_mpi ${MPI_LIBRARIES})
-
 target_link_libraries(finding_nemo_cl OpenCL::OpenCL)
 
 include_directories(${MPI_INCLUDE_PATH})

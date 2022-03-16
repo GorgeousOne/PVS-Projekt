@@ -7,17 +7,13 @@
 #include <string.h>
 #include <chrono>
 
-#include <omp.h>
-#include <mpi.h>
-#include <unistd.h>
-
 #define STB_IMAGE_IMPLEMENTATION
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image.h"
 #include "stb_image_write.h"
 
 
-void checkErr(cl_int const &err, char const *message) {
+void check_err(cl_int const &err, char const *message) {
 	if (CL_SUCCESS != err) {
 		printf(message, err);
 		printf("\nError: %d\n", err);
@@ -25,14 +21,14 @@ void checkErr(cl_int const &err, char const *message) {
 	}
 }
 
+//Gibt die ID der Plattform mit NVIDIA im Namen zurück
 unsigned int get_nvidia_platform(cl_platform_id const *platforms, cl_uint num_of_platforms) {
 	char platform_name[1024];
 
-	//Gibt die ID der Plattform mit NVIDIA im Namen zurück
 	for (unsigned int i = 0; i < num_of_platforms; i++) {
 		//Erfragt Informationen über alle verfügbaren Plattformen
 		cl_int err = clGetPlatformInfo(platforms[i], CL_PLATFORM_NAME, sizeof(platform_name), platform_name, NULL);
-		checkErr(err, "Could not get information about platform.");
+		check_err(err, "Could not get information about platform.");
 		//Überprüft ob NVIDIA im Plattformnamen enthalten ist
 		if (strstr(platform_name, "NVIDIA") != NULL) {
 			return i;
@@ -41,8 +37,8 @@ unsigned int get_nvidia_platform(cl_platform_id const *platforms, cl_uint num_of
 	return 0;
 }
 
+//Liest Kernel source von einem externen Dokument
 int read_source_from_file(const char *fileName, char **source, size_t *sourceSize) {
-	//Liest Kernel source von einem externen Dokument
 	FILE *fp = NULL;
 	fp = fopen(fileName, "rb");
 
@@ -80,7 +76,7 @@ void free_mat(T **A) {
 	free(A);    // free memory for pointers pointing to the beginning of each row
 }
 
-// https://stackoverflow.com/questions/61410931/write-a-c-program-to-convert-1d-array-to-2d-array-using-pointers Besucht: 03.03.2022
+// schreibt Helligkeitswerte aus einem Array in eine Matrix gegebener Größe
 void array_to_matrix(unsigned char **matrix, const unsigned char *arr, int cols, int rows) {
 	int k = 0;
 	for (int y = 0; y < rows; ++y) {
@@ -145,48 +141,46 @@ int main(int argc, char **argv) {
 	int heights[4] {img_w, img_h, patch_w, patch_h};
 	auto start = std::chrono::steady_clock::now();
 
-	/* 1) */
 	//Speichert die Anzahl der Plattformen in num_of_platforms
 	err = clGetPlatformIDs(0, NULL, &num_of_platforms);
-	checkErr(err, "No platforms found.");
+	check_err(err, "No platforms found.");
 
 	//Ruft die IDs der Plattformen ab
 	platforms = (cl_platform_id *) malloc(num_of_platforms);
 	err = clGetPlatformIDs(num_of_platforms, platforms, NULL);
-	checkErr(err, "No platforms found.");
+	check_err(err, "No platforms found.");
 
 	unsigned int nvidia_platform = get_nvidia_platform(platforms, num_of_platforms);
 	//Erfragt ID's von verfügbaren Geräten
 	err = clGetDeviceIDs(platforms[nvidia_platform], CL_DEVICE_TYPE_GPU, 1, &device_id, &num_of_devices);
-	checkErr(err, "Could not get device in platform.");
+	check_err(err, "Could not get device in platform.");
 
 	//Erstellt einen Kontext für OpenCL Programm
 	context = clCreateContext(0, 1, &device_id, NULL, NULL, &err);
-	checkErr(err, "Unable to create context.");
+	check_err(err, "Unable to create context.");
 
 	//Erstellt eine Befehlswarteschlange in diesem Kontext mit FIFO Prinzip
 	command_queue = clCreateCommandQueue(context, device_id, 0, &err);
-	checkErr(err, "Unable to create command queue.");
+	check_err(err, "Unable to create command queue.");
 
 	char *source = NULL;
 	size_t src_size = 0;
 	err = read_source_from_file("./kernel_source.cl", &source, &src_size);
-	checkErr(err, "Unable to load kernel source.");
+	check_err(err, "Unable to load kernel source.");
 
 	//Erstellt ein Programm mit dem Quellcode für den Kernel
 	program = clCreateProgramWithSource(context, 1, (const char **) &source, &src_size, &err);
 	free(source);
-	checkErr(err, "Unable to create program.");
+	check_err(err, "Unable to create program.");
 
 	//Kompiliert und linkt den Kernel Quellcode
 	err = clBuildProgram(program, 0, NULL, NULL, NULL, NULL);
-	checkErr(err, "Error building program.");
+	check_err(err, "Error building program.");
 
 	//Definiert Kernel Einsprungspunkt
 	kernel = clCreateKernel(program, "match_patch", &err);
-	checkErr(err, "Error setting kernel.");
+	check_err(err, "Error setting kernel.");
 
-	/* 2) */
 	//Erstellt Buffer für input und output
 	size_t img_mem_size = sizeof(unsigned char) * img_w * img_h;
 	size_t patch_mem_size = sizeof(unsigned char) * patch_w * patch_h;
@@ -195,10 +189,10 @@ int main(int argc, char **argv) {
 
 	img_buffer = clCreateBuffer(context, CL_MEM_READ_ONLY, img_mem_size, NULL, &err);
 	patch_buffer = clCreateBuffer(context, CL_MEM_READ_ONLY, patch_mem_size, NULL, &err);
-	result_buffer = clCreateBuffer(context, CL_MEM_READ_WRITE, result_mem_size, NULL, &err);
-	dims_buffer = clCreateBuffer(context, CL_MEM_READ_WRITE, heights_mem_size, NULL, &err);
+	result_buffer = clCreateBuffer(context, CL_MEM_WRITE_ONLY, result_mem_size, NULL, &err);
+	dims_buffer = clCreateBuffer(context, CL_MEM_READ_ONLY, heights_mem_size, NULL, &err);
 
-	//Kopiert zusammenhängende Daten aus data in den Eingabe-Puffer
+	//Kopiert zusammenhängende Daten aus den 2D Arrays in den Eingabe-Puffer
 	clEnqueueWriteBuffer(command_queue, img_buffer, CL_TRUE, 0, img_mem_size, img2d[0], 0, NULL, NULL);
 	clEnqueueWriteBuffer(command_queue, patch_buffer, CL_TRUE, 0, patch_mem_size, patch2d[0], 0, NULL, NULL);
 	clEnqueueWriteBuffer(command_queue, dims_buffer, CL_TRUE, 0, heights_mem_size, heights, 0, NULL, NULL);
@@ -209,7 +203,6 @@ int main(int argc, char **argv) {
 	clSetKernelArg(kernel, 2, sizeof(cl_mem), &dims_buffer);
 	clSetKernelArg(kernel, 3, sizeof(cl_mem), &result_buffer);
 
-	/* 3)  */
 	//Einreihen des Kerns in die Befehlswarteschlange und Aufteilungsbereich angeben
 	clEnqueueNDRangeKernel(command_queue, kernel, 2, NULL, global, NULL, 0, NULL, NULL);
 	//Auf die Beendigung der Operation warten
@@ -217,7 +210,7 @@ int main(int argc, char **argv) {
 	//Kopiere die Ergebnisse vom Ausgabe-Puffer 'output' in das Ergebnisfeld 'results'
 	clEnqueueReadBuffer(command_queue, result_buffer, CL_TRUE, 0, result_mem_size, result2d[0], 0, NULL, NULL);
 
-
+	//bestimmt die Kordinate der maximalen Korrelation von den von den Kerneln berechneten Werten
 	int max_correlation = 999999;
 	int max_x = -1;
 	int max_y = -1;
@@ -231,7 +224,6 @@ int main(int argc, char **argv) {
 		}
 	}
 
-	/* 4) */
 	clReleaseMemObject(img_buffer);
 	clReleaseMemObject(patch_buffer);
 	clReleaseMemObject(result_buffer);

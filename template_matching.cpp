@@ -1,12 +1,14 @@
+// Aaron Kammer 122461
+// David Krug 122427
+
 #include <omp.h>
-#include <mpi.h>
-#include <unistd.h>
 
 #define STB_IMAGE_IMPLEMENTATION
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image.h"
 #include "stb_image_write.h"
 
+// summiert all Helligkeitswerte im gegebenen Bildbereich und teilt durch Anzahl der Pixel
 float calc_pixels_mean_value(unsigned char **img, int w, int h, int x = 0, int y = 0) {
 	int pixel_sum = 0;
 	for (int dy = 0; dy < h; ++dy) {
@@ -17,6 +19,7 @@ float calc_pixels_mean_value(unsigned char **img, int w, int h, int x = 0, int y
 	return 1.0f * pixel_sum / (w * h);
 }
 
+// multipliziert die Helligkeit von Pixeln des Bildes mit denen des Templates und gibt die Summe zurück
 int calc_pixels_a_times_b_sum(unsigned char **img_a, unsigned char **patch_b, int w, int h, int img_x, int img_y) {
 	int pixel_sum = 0;
 	for (int dy = 0; dy < h; ++dy) {
@@ -27,6 +30,7 @@ int calc_pixels_a_times_b_sum(unsigned char **img_a, unsigned char **patch_b, in
 	return pixel_sum;
 }
 
+// quadriert die Hlligkeitswerte jedes Pixels im Bild und gibt die Summe zurück
 int calc_pixels_squared_sum(unsigned char **img, int w, int h, int x = 0, int y = 0) {
 	int pixels_squared_sum = 0;
 	for (int dy = 0; dy < h; ++dy) {
@@ -38,6 +42,7 @@ int calc_pixels_squared_sum(unsigned char **img, int w, int h, int x = 0, int y 
 	return pixels_squared_sum;
 }
 
+// führt das template matching aus und schreibt die Koordinaten mit der größten Korrelation in die Konsole
 void match_patch(unsigned char **img, int img_w, int img_h, unsigned char **patch, int patch_w, int patch_h) {
 
 	float n_squared_inv = 1.0f / (patch_w * patch_h);
@@ -50,13 +55,13 @@ void match_patch(unsigned char **img, int img_w, int img_h, unsigned char **patc
 	int correlation_x = -1;
 	int correlation_y = -1;
 
+	//führt die normalized cross correlation auf jedem Pixel des Suchbilds aus
 	for (int y = 0; y <= img_h - patch_h; ++y) {
 		for (int x = 0; x <= img_w - patch_w; ++x) {
 
 			float img_mean_value = calc_pixels_mean_value(img, patch_w, patch_h, x, y);
 			int img_pixels_squared_sum = calc_pixels_squared_sum(img, patch_w, patch_h, x, y);
-			float img_pixels_squared_normalized =
-					n_squared_inv * img_pixels_squared_sum - img_mean_value * img_mean_value;
+			float img_pixels_squared_normalized = n_squared_inv * img_pixels_squared_sum - img_mean_value * img_mean_value;
 
 			float denominator = sqrtf(img_pixels_squared_normalized * patch_pixels_squared_normalized);
 
@@ -77,7 +82,7 @@ void match_patch(unsigned char **img, int img_w, int img_h, unsigned char **patc
 	printf("Found Nemo at x: %i y: %i\n", correlation_x, correlation_y);
 }
 
-// https://stackoverflow.com/questions/61410931/write-a-c-program-to-convert-1d-array-to-2d-array-using-pointers Besucht: 03.03.2022
+// schreibt Helligkeitswerte aus einem Array in eine Matrix gegebener Größe
 void array_to_matrix(unsigned char **matrix, const unsigned char *arr, int cols, int rows) {
 	int k = 0;
 	for (int y = 0; y < rows; ++y) {
@@ -109,11 +114,10 @@ int main(int argc, char **argv) {
 
 	int img_w = 0;
 	int img_h = 0;
-	int img_c = 0; // number of image channels
+	int img_c = 0;
 	int desired_c = 1;
 
 	unsigned char *img = NULL;
-	//load RGB image as 1 channel grayscale image (1x unsigned 8 bit per pixel)
 	img = stbi_load(img_path, &img_w, &img_h, &img_c, desired_c);
 	printf("\nLoaded image: %s\n", (img != NULL ? "true" : "false"));
 	printf("\twidth: %d\n", img_w);

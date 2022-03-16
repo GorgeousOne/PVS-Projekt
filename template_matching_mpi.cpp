@@ -1,3 +1,6 @@
+// Aaron Kammer 122461
+// David Krug 122427
+
 #include <mpi.h>
 
 #define STB_IMAGE_IMPLEMENTATION
@@ -5,7 +8,7 @@
 #include "stb_image.h"
 #include "stb_image_write.h"
 
-
+// berechnet die absolute Differenz von Helligkeiten des Bildes und des Templates und gibt die Summe zurück
 int calc_pixels_abs_a_minus_b_sum(unsigned char **img_a, unsigned char **patch_b, int w, int h, int img_x, int img_y) {
 	int pixel_sum = 0;
 	for (int y = 0; y < h; ++y) {
@@ -16,7 +19,8 @@ int calc_pixels_abs_a_minus_b_sum(unsigned char **img_a, unsigned char **patch_b
 	return pixel_sum;
 }
 
-void match_patch(unsigned char** img, int img_w, int img_h, unsigned char** patch, int patch_w, int patch_h, int cor[3]) {
+// führt das template matching aus und schreibt die Koordinaten mit der größten Korrelation in den result Array
+void match_patch(unsigned char** img, int img_w, int img_h, unsigned char** patch, int patch_w, int patch_h, int result[3]) {
 	int max_correlation = 9999999;
 	int correlation_x = -1;
 	int correlation_y = -1;
@@ -32,12 +36,12 @@ void match_patch(unsigned char** img, int img_w, int img_h, unsigned char** patc
 			}
 		}
 	}
-	cor[0] = max_correlation;
-	cor[1] = correlation_x;
-	cor[2] = correlation_y;
+	result[0] = max_correlation;
+	result[1] = correlation_x;
+	result[2] = correlation_y;
 }
 
-// https://stackoverflow.com/questions/61410931/write-a-c-program-to-convert-1d-array-to-2d-array-using-pointers Besucht: 03.03.2022
+// schreibt Helligkeitswerte aus einem Array in eine Matrix gegebener Größe
 void array_to_matrix(unsigned char** matrix, const unsigned char* arr, int cols, int rows) {
 	int k = 0;
 	for (int y = 0; y < rows; ++y) {
@@ -103,6 +107,7 @@ int main(int argc, char** argv) {
 		printf("\twidth: %d\n", patch_w);
 		printf("\theight: %d\n", patch_h);
 
+		//convert
 		img2d = alloc_mat(img_w, img_h);
 		patch2d = alloc_mat(patch_w, patch_h);
 		array_to_matrix(img2d, img, img_w, img_h);
